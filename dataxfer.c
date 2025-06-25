@@ -48,6 +48,10 @@
 #define NET    "tcp "
 
 // Begin muffling functionality custom code
+
+// Use this command to run: 
+// sudo /usr/local/sbin/ser2net -n -c /usr/local/etc/ser2net.yaml -P /usr/local/run/ser2net.pid
+
 #define REPLAY_MAX  100
 static struct {
     unsigned char buf[4096];
@@ -56,8 +60,8 @@ static struct {
 static int replay_head = 0;
 
 static bool should_drop(const unsigned char *buf, size_t len) {
-    //return (rand() % 100) < 10;   // 10% drop
-	return false;
+    return (rand() % 100) < 50;   // 50% drop
+	//return false;
 }
 static bool should_replay(const unsigned char *buf, size_t len) {
     //return (rand() % 100) < 5;    // 5% replay
