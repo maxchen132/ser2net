@@ -47,6 +47,26 @@
 #define SERIAL "term"
 #define NET    "tcp "
 
+// Begin muffling functionality custom code
+#define REPLAY_MAX  100
+static struct {
+    unsigned char buf[4096];
+    size_t         len;
+} replay_buf[REPLAY_MAX];
+static int replay_head = 0;
+
+static bool should_drop(const unsigned char *buf, size_t len) {
+    //return (rand() % 100) < 10;   // 10% drop
+	return false;
+}
+static bool should_replay(const unsigned char *buf, size_t len) {
+    //return (rand() % 100) < 5;    // 5% replay
+	return false;
+}
+// End muffling functionality custom code
+
+
+
 static void setup_port(port_info_t *port, net_info_t *netcon);
 static int handle_net_event(struct gensio *net, void *user_data,
 			    int event, int err,
@@ -554,6 +574,33 @@ handle_net_fd_read(net_info_t *netcon, int readerr,
     if (port->tb)
 	/* Do both tracing, ignore errors. */
 	do_trace(port, port->tb, buf, buflen, NET);
+
+	// Begin muffling functionality custom code
+	if ( should_drop(buf, buflen) ) {
+        // pretend we consumed it, but do _not_ write to the device
+        rv = buflen;
+        goto out_unlock;
+    }
+
+	if ( should_replay(buf, buflen) ) {
+        // pick one at random from your ring buffer
+        int idx = rand() % REPLAY_MAX;
+        if ( replay_buf[idx].len > 0 ) {
+            memcpy(port->net_to_dev.buf,
+                   replay_buf[idx].buf,
+                   replay_buf[idx].len);
+            port->net_to_dev.cursize = replay_buf[idx].len;
+            port->net_to_dev.pos = 0;
+            rv = buflen;
+            goto stop_read_start_write;  // drop into the normal-write path
+        }
+        // if buffer empty, fall through to normal path
+    }
+
+	memcpy(replay_buf[replay_head].buf, buf, buflen);
+    replay_buf[replay_head].len = buflen;
+    replay_head = (replay_head + 1) % REPLAY_MAX;
+	// End muffling functionality custom code
 
     memcpy(port->net_to_dev.buf, buf, buflen);
     port->net_to_dev.cursize = buflen;
